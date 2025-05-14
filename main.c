@@ -20,7 +20,7 @@ void* print_thread(void* arg)
 {
     size_t num = (size_t)arg;
     size_t run_count = 0;
-    while (true)
+    while (run_count < 10)
     {
         printf("running thread %zu for the %zu time\n", num, run_count);
         run_count++;
@@ -40,9 +40,5 @@ int main()
 
     puts("sleeping");
     sleep(10); // Should run 1-THREAD_COUNT
-    puts("Sleep some more");
-    sleep(10); // Run it again
-    puts("Sleep some more more");
-    sleep(10); // Run it again again
     puts("Done");
 }

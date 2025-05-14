@@ -13,8 +13,8 @@
 #define TIMER_INTERVAL_MS 100
 
 static green_thread* thread_list = NULL;
-static size_t thread_list_size = 0;
-static size_t thread_index = 0;
+volatile static size_t thread_list_size = 0;
+volatile static size_t thread_index = 0;
 
 //#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG_PRINT(...)
@@ -121,10 +121,33 @@ static void setup_signal()
         perror("sigaction");
 }
 
+static void handle_exit(void)
+{
+    DEBUG_PRINT("[!] in exit handler\n");
+
+    if (!thread_list)
+    {
+        DEBUG_PRINT("[+] No threads found.\n");
+        return;
+    }
+
+    while (true)
+    {
+        size_t index = thread_index;
+        if (index == 0) ++index;
+        if (thread_list[index].done) break;
+
+        DEBUG_PRINT("[*] thread %zu still running (%i), waiting\n", index, thread_list[index].done);
+        sleep(-1);
+    }
+}
+
 static void setup()
 {
     setup_signal();
     setup_timer();
+
+    atexit(handle_exit);
 }
 
 static void init_thread_list()
