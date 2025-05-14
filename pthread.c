@@ -10,24 +10,20 @@
 
 #include "single-pthread.h"
 
-#ifndef __x86_64
-#error TODO
-#endif
-
-#ifndef REG_RIP
-#error broken
-#endif
-
-#define INSTRUCTION_POINTER_REGISTER REG_RIP
-#define ARG1_POINTER_REGISTER REG_RDI
-#define TIMER_INTERVAL 1
+#define TIMER_INTERVAL_MS 100
 
 static green_thread* thread_list = NULL;
 static size_t thread_list_size = 0;
 static size_t thread_index = 0;
 
+//#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#define DEBUG_PRINT(...)
+
 static void thread_trampoline(green_thread* thread)
 {
+    thread->running = 1;
+    thread->done = 0;
+
     thread->retval = thread->routine(thread->arg);
 
     thread->running = 0;
@@ -38,7 +34,7 @@ static void thread_trampoline(green_thread* thread)
 static void setup_timer()
 {
     int ret;
-    //fprintf(stderr, "[*] setting up timer\n");
+    DEBUG_PRINT("[*] setting up timer\n");
 
     struct sigevent clock_sig_event;
     memset(&clock_sig_event, 0, sizeof( struct sigevent));
@@ -55,12 +51,12 @@ static void setup_timer()
 
     /* settings timer interval values */
     memset(&timer_value, 0, sizeof(struct itimerspec));
-    timer_value.it_interval.tv_sec = TIMER_INTERVAL;
-    timer_value.it_interval.tv_nsec = 0;
+    timer_value.it_interval.tv_sec = (TIMER_INTERVAL_MS / 1000);
+    timer_value.it_interval.tv_nsec = (TIMER_INTERVAL_MS % 1000) * 1000000;
 
     /* setting timer initial expiration values*/
-    timer_value.it_value.tv_sec = TIMER_INTERVAL;
-    timer_value.it_value.tv_nsec = 0;
+    timer_value.it_value.tv_sec = (TIMER_INTERVAL_MS / 1000);
+    timer_value.it_value.tv_nsec = (TIMER_INTERVAL_MS % 1000) * 1000000;
 
     /* Create timer */
     ret = timer_settime(timer_id, 0, &timer_value, NULL);
@@ -88,27 +84,28 @@ static void signal_handler(int signum, siginfo_t* info, void*ptr) {
 
     if (cur_thread == next_thread)
     {
-        //fprintf(stderr, "[*] No new threads found, continuing\n");
+        DEBUG_PRINT("[*] No new threads found, continuing\n");
         return;
     }
 
-    //fprintf(stderr, "[*] Switching context to %ld\n", thread_index);
+    DEBUG_PRINT("[*] Switching context to %ld\n", thread_index);
 
     ucontext_t *ucontext = (ucontext_t*)ptr;
 
-    memcpy(cur_thread->gregs, ucontext->uc_mcontext.gregs, sizeof(gregset_t));
+    memcpy(&cur_thread->ctx, ucontext, sizeof(*ucontext));
 
     if (next_thread->running)
     {
-        //fprintf(stderr, "[*] Continuing process\n");
+        DEBUG_PRINT("[*] Continuing process\n");
         // thread is already running, just continue it
-        memcpy(ucontext->uc_mcontext.gregs, next_thread->gregs, sizeof(gregset_t));
+        memcpy(ucontext, &next_thread->ctx, sizeof(*ucontext));
     }
     else
     {
-        //fprintf(stderr, "[*] Starting process\n");
-        ucontext->uc_mcontext.gregs[INSTRUCTION_POINTER_REGISTER] = (greg_t)thread_trampoline;
-        ucontext->uc_mcontext.gregs[ARG1_POINTER_REGISTER] = (greg_t)next_thread;
+        DEBUG_PRINT("[*] Starting process\n");
+        ucontext->uc_stack.ss_sp = cur_thread->stack;
+        ucontext->uc_stack.ss_size = SIGSTKSZ;
+        makecontext(ucontext, (void (*)(void))thread_trampoline, 1, next_thread);
     }
 
     return;

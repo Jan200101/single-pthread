@@ -14,25 +14,35 @@
 #include "single-pthread.h"
 
 
+#define THREAD_COUNT 10
+
 void* print_thread(void* arg)
 {
     size_t num = (size_t)arg;
-    printf("thread num: %ld\n", num);
+    size_t run_count = 0;
+    while (true)
+    {
+        printf("running thread %zu for the %zu time\n", num, run_count);
+        run_count++;
+        sleep(1);
+    }
 
     return NULL;
 }
 
 int main()
 {
-    pthread_t threads[5];
-    for (size_t i =  0; i < 5; i++)
+    pthread_t threads[THREAD_COUNT];
+    for (size_t i =  0;i < THREAD_COUNT; i++)
     {
-        pthread_create(&threads[i], NULL, print_thread, (void*)i);
+        pthread_create(&threads[i], NULL, print_thread, (void*)i + 1);
     }
 
     puts("sleeping");
-    sleep(10); // Should run 1-5
+    sleep(10); // Should run 1-THREAD_COUNT
     puts("Sleep some more");
-    sleep(10); // Nothing should print here
-    puts("Done sleeping");
+    sleep(10); // Run it again
+    puts("Sleep some more more");
+    sleep(10); // Run it again again
+    puts("Done");
 }

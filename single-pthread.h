@@ -22,6 +22,12 @@
 #endif
 #include <signal.h>
 
+#ifdef SIGSTKSZ
+#undef SIGSTKSZ
+#endif
+
+#define SIGSTKSZ 8192
+
 #define inline_kill(pid, signal) \
     {{ \
         ssize_t ret; \
@@ -38,13 +44,18 @@
 
 typedef void *(*pthread_routine_t)(void*);
 
+#ifndef SIGSTKSZ
+#error BLA
+#endif
+
 typedef struct {
     pthread_routine_t routine;
     void* arg;
     void* retval;
-    gregset_t gregs;
+    ucontext_t ctx;
     uint8_t running;
     uint8_t done;
+    char stack[SIGSTKSZ];
 } green_thread;
 
 int pthread_create(pthread_t *restrict thread,
